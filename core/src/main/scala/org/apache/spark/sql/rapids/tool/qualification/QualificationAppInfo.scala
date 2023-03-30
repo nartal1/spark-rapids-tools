@@ -762,6 +762,16 @@ object QualificationAppInfo extends Logging {
     val estimated_gpu_timesaved = appDuration - estimated_gpu_duration
     val recommendation = getRecommendation(estimated_gpu_speedup, hasFailures)
 
+    println(s"speedUpOpportunitySQL=$speedUpOpportunitySQL, " +
+      s"sqlDataFrameDurationToUse=$sqlDataFrameDurationToUse," +
+      s"estimatedRatio=$estimatedRatio," +
+      s"speedupOpportunityWallClock=$speedupOpportunityWallClock," +
+      s"estimated_wall_clock_dur_not_on_gpu=$estimated_wall_clock_dur_not_on_gpu," +
+      s"sqlSpeedupFactor=$sqlSpeedupFactor" +
+      s"estimated_gpu_duration=$estimated_gpu_duration," +
+      s"estimated_gpu_speedup=$estimated_gpu_speedup," +
+      s"estimated_gpu_timesaved=$estimated_gpu_timesaved")
+
     // truncate the double fields to double precision to ensure that unit-tests do not explicitly
     // set the format to match the output. Removing the truncation from here requires modifying
     // TestQualificationSummary to truncate the same fields to match the CSV static samples.

@@ -139,6 +139,9 @@ object SQLPlanParser extends Logging {
     val execInfos = planGraph.nodes.flatMap { node =>
       parsePlanNode(node, sqlID, checker, app, reusedNodeIds = excludedNodes)
     }
+    val temp = execInfos.filter(x=> x.exec.contains("Scan"))
+    val duration = temp.map(x=> x.duration.get).sum
+    println(s"DURATION OF Scan is $duration")
     PlanInfo(appID, sqlID, sqlDesc, execInfos)
   }
 

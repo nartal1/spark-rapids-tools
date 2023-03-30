@@ -32,6 +32,7 @@ case class FileSourceScanExecParser(
   val fullExecName = "FileSourceScanExec"
 
   override def parse: ExecInfo = {
+    println(s"INSIDE FILESOURCESCANEXEC PARSER")
     val accumId = node.metrics.find(_.name == "scan time").map(_.accumulatorId)
     val maxDuration = SQLPlanParser.getTotalDuration(accumId, app)
 
@@ -39,8 +40,9 @@ case class FileSourceScanExecParser(
     // don't use the isExecSupported because we have finer grain.
     val score = ReadParser.calculateReadScoreRatio(readInfo, checker)
     val speedupFactor = checker.getSpeedupFactor(fullExecName)
-    val overallSpeedup = Math.max((speedupFactor * score), 1.0)
-
+    // val overallSpeedup = Math.max((speedupFactor * score), 1.0)
+    val overallSpeedup = 1.0
+    println(s"OverallSPEEDUP is $overallSpeedup, format is ${readInfo.format}, totalDuration=${maxDuration.getOrElse(-1)}")
     // TODO - add in parsing expressions - average speedup across?
     new ExecInfo(sqlID, node.name, "", overallSpeedup, maxDuration, node.id, score > 0, None)
   }

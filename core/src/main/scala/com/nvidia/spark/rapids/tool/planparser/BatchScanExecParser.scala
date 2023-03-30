@@ -31,6 +31,7 @@ case class BatchScanExecParser(
   val fullExecName = "BatchScanExec"
 
   override def parse: ExecInfo = {
+    println(s"INSIDE BATCHSCANEXEC PARSER")
     val accumId = node.metrics.find(_.name == "scan time").map(_.accumulatorId)
     val maxDuration = SQLPlanParser.getTotalDuration(accumId, app)
     val readInfo = ReadParser.parseReadNode(node)
