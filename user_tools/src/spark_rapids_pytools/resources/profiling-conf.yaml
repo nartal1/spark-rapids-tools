@@ -17,6 +17,8 @@ sparkRapids:
       - any
       - a
       - application-name
+      - d
+      - driverlog
       - f
       - filter-criteria
       - g

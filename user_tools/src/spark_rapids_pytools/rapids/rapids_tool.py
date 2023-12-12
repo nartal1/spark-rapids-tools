@@ -602,6 +602,14 @@ class RapidsJarTool(RapidsTool):
 
     def _process_eventlogs_args(self):
         eventlog_arg = self.wrapper_options.get('eventlogs')
+        ctxt_rapids_args = self.ctxt.get_ctxt('rapidsArgs')
+        driverlog = ctxt_rapids_args.get('rapidsOpts')
+        contains_driverlog = False
+
+        # check if driverlog has -d or -driverlog in it
+        if driverlog is not None:
+            if any('-d' in s or '-driverlog' in s for s in driverlog):
+                contains_driverlog = True
         if eventlog_arg is None:
             # get the eventlogs from spark properties
             cpu_cluster_obj = self._get_main_cluster_obj()
@@ -618,7 +626,7 @@ class RapidsJarTool(RapidsTool):
                 spark_event_logs = eventlog_arg.split(',')
             else:
                 spark_event_logs = eventlog_arg
-        if len(spark_event_logs) < 1:
+        if len(spark_event_logs) < 1 and not contains_driverlog:
             self.logger.error('Eventlogs list is empty. '
                               'The cluster Spark properties may be missing "spark.eventLog.dir". '
                               'Re-run the command passing "--eventlogs" flag to the wrapper.')
