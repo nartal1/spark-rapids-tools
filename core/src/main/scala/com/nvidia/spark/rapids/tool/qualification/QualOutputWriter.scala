@@ -421,6 +421,7 @@ object QualOutputWriter {
   val NUM_TRANSITIONS = "Number of transitions from or to GPU"
   val UNSUPPORTED_EXECS = "Unsupported Execs"
   val UNSUPPORTED_EXPRS = "Unsupported Expressions"
+  val UNSUPPORTED_OPERATOR = "Unsupported Operator"
   val CLUSTER_TAGS = "Cluster Tags"
   val CLUSTER_ID = "ClusterId"
   val JOB_ID = "JobId"
@@ -579,6 +580,8 @@ object QualOutputWriter {
     val detailedHeaderAndFields = LinkedHashMap[String, Int](
       APP_ID_STR -> QualOutputWriter.getAppIdSize(appInfos),
       UNSUPPORTED_TYPE -> UNSUPPORTED_TYPE.size,
+      UNSUPPORTED_OPERATOR -> UNSUPPORTED_OPERATOR.size,
+      DETAILS -> DETAILS.size,
       STAGE_ID_STR -> STAGE_ID_STR.size,
       STAGE_WALLCLOCK_DUR_STR -> STAGE_WALLCLOCK_DUR_STR.size,
       APP_DUR_STR -> APP_DUR_STR.size,
@@ -942,6 +945,17 @@ object QualOutputWriter {
     val appDuration = sumInfo.estimatedInfo.appDur
     val recommendation = sumInfo.estimatedInfo.recommendation
 
+/*    def createUnsupportedRow(exec: String, execType: String, notes: String,
+        ignoreOperator: String = false.toString): String = {
+      val data = ListBuffer(
+        appId -> headersAndSizes(APP_ID_STR),
+        reformatCSVFunc(execType) -> headersAndSizes(UNSUPPORTED_TYPE),
+        reformatCSVFunc(exec) -> headersAndSizes(DETAILS),
+        reformatCSVFunc(notes) -> headersAndSizes(NOTES),
+      )
+      constructOutputRow(data, delimiter, prettyPrint)
+    }*/
+
     sumInfo.stageInfo.collect {
       case info if info.unsupportedExecs.nonEmpty =>
         val stageAppDuration = info.stageWallclockDuration
@@ -951,12 +965,46 @@ object QualOutputWriter {
             // Ignore operator is a boolean value which indicates if the operator should be
             // considered for GPU acceleration or not. If the value is true, the operator will
             // be ignored.
-            val ignoreUnsupportedExec =
-              ExecHelper.getAllIgnoreExecs.contains(unsupportedExecsStr).toString
+           /* val ignoreUnsupportedExec =
+              ExecHelper.getAllIgnoreExecs.contains(unsupportedExecsStr).toString*/
+            val ignoreUnsupportedExec = unsupportedExecsStr.shouldIgnore.toString
+            println(s"Inside stageInfo, appId: $appId,  " +
+              s"stageId: ${info.stageId}, unsupportedExecsStr: " +
+              s"${unsupportedExecsStr.exec}, " +
+              s"unsupportedExprs: ${unsupportedExecsStr.unsupportedExprs.mkString(";")}")
+
+            println(s"readFileFormatAndTypesNotSupported: " +
+              s"${sumInfo.readFileFormatAndTypesNotSupported.mkString(";")}")
+            println(s"writeDataFormat: ${sumInfo.writeDataFormat.mkString(";")}\n")
+            val execName = unsupportedExecsStr.exec
+            val unsupType = if(sumInfo.readFileFormatAndTypesNotSupported.contains(execName)){
+              "Read"
+            } else if (sumInfo.writeDataFormat.contains(execName)) {
+              "Write"
+            } else {
+              "Exec"
+            }
+
+            val details = if (unsupportedExecsStr.dataSet) {
+              s"DataSet"
+            } else if (unsupportedExecsStr.udf) {
+              s"UDF"
+            } else if (unsupportedExecsStr.unsupportedExprs.nonEmpty) {
+              unsupportedExecsStr.unsupportedExprs.mkString(";")
+            } else {
+              ""
+            }
+
+            val fullDetails = s"Exec $execName is not supported because it contains unsupported " +
+              s"operators $details"
+/*            createUnsupportedRow(unsupportedExecsStr.exec, "Exec", "",
+              ignoreUnsupportedExec)*/
 
             val data = ListBuffer[(String, Int)](
               reformatCSVFunc(appId) -> headersAndSizes(APP_ID_STR),
-              reformatCSVFunc(unsupportedExecsStr) -> headersAndSizes(UNSUPPORTED_TYPE),
+              reformatCSVFunc(unsupType) -> headersAndSizes(UNSUPPORTED_TYPE),
+              reformatCSVFunc(unsupportedExecsStr.exec) -> headersAndSizes(UNSUPPORTED_OPERATOR),
+              reformatCSVFunc(fullDetails) -> headersAndSizes(DETAILS),
               info.stageId.toString -> headersAndSizes(STAGE_ID_STR),
               stageAppDuration.toString -> headersAndSizes(STAGE_WALLCLOCK_DUR_STR),
               appDuration.toString -> headersAndSizes(APP_DUR_STR),
@@ -986,8 +1034,13 @@ object QualOutputWriter {
     val unsupportedOperatorsOutputRows = new ArrayBuffer[String]()
     val unsupportedExprs = sumInfo.unSupportedExprs
     val allExecs = getAllExecsFromPlan(sumInfo.planInfo)
+    println(s"Print all execs info for app: $appId")
+    allExecs.foreach(x => println(s"Exec: ${x.exec} - DataSet: ${x.dataSet} - UDF: ${x.udf}," +
+      s" UnsupportedExprs: ${x.unsupportedExprs.mkString(";")}, ${x.stages}, " +
+      s"shouldRemove: ${x.shouldRemove}, shouldIgnore: ${x.shouldIgnore}"))
     val dataSetExecs = allExecs.collect { case x if x.dataSet => x.exec }
     val udfExecs = allExecs.collect { case x if x.udf => x.exec }
+//    println(s"UDF Execs: $udfExecs")
 
     def createUnsupportedRow(exec: String, execType: String, notes: String,
         ignoreOperator: String = false.toString): String = {
@@ -1021,11 +1074,14 @@ object QualOutputWriter {
     val unsupportedExecExprsMap = sumInfo.unsupportedExecstoExprsMap
     val unsupportedExecsSet = sumInfo.unSupportedExecs.split(";").toSet
     val unsupportedExecsFiltered = unsupportedExecsSet.filterNot(unsupportedExecExprsMap.contains)
+    println(s"Unsupported Execs Filtered: $unsupportedExecsFiltered")
     val actualunsupportedExecs = unsupportedExecsFiltered.filterNot(x => dataSetExecs.contains(x)
         || udfExecs.contains(x) || unsupportedExecExprsMap.contains(x)
         || HiveParseHelper.isHiveTableScanNode(x)
         || HiveParseHelper.isHiveTableInsertNode(x)
     )
+    println(s"Actual Unsupported Execs: $actualunsupportedExecs")
+    println("\n")
     val unsupportedExecRows = actualunsupportedExecs.map { exec =>
       // If the exec is in the ignore list, then set the ignore operator to true.
       createUnsupportedRow(exec, "Exec", "", ExecHelper.getAllIgnoreExecs.contains(exec).toString)

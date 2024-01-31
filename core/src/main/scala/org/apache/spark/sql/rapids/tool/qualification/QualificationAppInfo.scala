@@ -323,7 +323,7 @@ class QualificationAppInfo(
     val allSpeedupFactorAvg = SQLPlanParser.averageSpeedup(execInfos.map(_.speedupFactor))
     val allFlattenedExecs = flattenedExecs(execInfos)
     val numUnsupported = allFlattenedExecs.filterNot(_.isSupported)
-    val unsupportedExecs = numUnsupported.map(_.exec)
+    // val unsupportedExecs = numUnsupported.map(_.exec)
     // if we have unsupported try to guess at how much time.  For now divide
     // time by number of execs and give each one equal weight
     val eachExecTime = allStageTaskTime / allFlattenedExecs.size
@@ -371,7 +371,7 @@ class QualificationAppInfo(
 
       StageQualSummaryInfo(stageId, allSpeedupFactorAvg, stageTaskTime,
         finalEachStageUnsupported, numTransitions, transitionsTime, estimated,
-        wallclockStageDuration, unsupportedExecs)
+        wallclockStageDuration, numUnsupported)
     }.toSet
   }
 
@@ -542,7 +542,9 @@ class QualificationAppInfo(
         val typeString = types.mkString(":").replace(",", ":")
         s"${format}[$typeString]"
       }.toSeq
+      println(s"Unsupported formats and types: ${notSupportFormatAndTypesString.mkString(";")}")
       val writeFormat = writeFormatNotSupported(writeDataFormat)
+      println(s"Unsupported write formats: ${writeFormat.mkString(";")}")
       val (allComplexTypes, nestedComplexTypes) = reportComplexTypes
       val problems = getAllPotentialProblems(getPotentialProblemsForDf, nestedComplexTypes)
 
@@ -918,7 +920,7 @@ case class StageQualSummaryInfo(
     transitionTime: Long,
     estimated: Boolean = false,
     stageWallclockDuration: Long = 0,
-    unsupportedExecs: Seq[String] = Seq.empty)
+    unsupportedExecs: Seq[ExecInfo] = Seq.empty)
 
 object QualificationAppInfo extends Logging {
   // define recommendation constants
