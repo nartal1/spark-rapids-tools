@@ -559,7 +559,9 @@ class QualificationAppInfo(
       val origPlanInfos = sqlPlans.collect {
         case (id, plan) if sqlIdToInfo.contains(id) =>
           val sqlDesc = sqlIdToInfo(id).description
-          SQLPlanParser.parseSQLPlan(appId, plan, id, sqlDesc, pluginTypeChecker, this)
+          val rootExecutionID = sqlIdToInfo(id).rootExecutionID
+          SQLPlanParser.parseSQLPlan(appId, plan, id, sqlDesc, pluginTypeChecker, this,
+            rootExecutionID)
       }.toSeq
 
       // get summary of each SQL Query for original plan
@@ -588,7 +590,8 @@ class QualificationAppInfo(
             val sqlStageSums = perSqlStageSummary.filter(_.sqlID == pInfo.sqlID)
             val estimatedInfo = getPerSQLWallClockSummary(sqlStageSums, wallClockDur,
               sqlIDtoFailures.get(pInfo.sqlID).nonEmpty, appName)
-            EstimatedPerSQLSummaryInfo(pInfo.sqlID, pInfo.sqlDesc, estimatedInfo)
+            EstimatedPerSQLSummaryInfo(pInfo.sqlID, pInfo.rootExecutionID, pInfo.sqlDesc,
+              estimatedInfo)
           }
         })
       } else {
@@ -855,6 +858,7 @@ case class EstimatedSummaryInfo(
 // Estimate based on wall clock times for each SQL query
 case class EstimatedPerSQLSummaryInfo(
     sqlID: Long,
+    rootExecutionID: Option[Long],
     sqlDesc: String,
     info: EstimatedAppInfo)
 

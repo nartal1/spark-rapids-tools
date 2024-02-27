@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2023, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -280,8 +280,10 @@ class RunningQualificationApp(
   // don't aggregate at app level, just sql level
   private def aggregatePerSQLStats(sqlID: Long): Option[EstimatedPerSQLSummaryInfo] = {
     val sqlDesc = sqlIdToInfo.get(sqlID).map(_.description)
+    val rootExecID = sqlIdToInfo.get(sqlID).map(_.rootExecutionID)
     val origPlanInfo = sqlPlans.get(sqlID).map { plan =>
-      SQLPlanParser.parseSQLPlan(appId, plan, sqlID, sqlDesc.getOrElse(""), pluginTypeChecker, this)
+      SQLPlanParser.parseSQLPlan(appId, plan, sqlID, sqlDesc.getOrElse(""), pluginTypeChecker,
+        this, rootExecID.getOrElse(None))
     }
     val perSqlInfos = origPlanInfo.flatMap { pInfo =>
       // filter out any execs that should be removed
@@ -294,7 +296,7 @@ class RunningQualificationApp(
         val sqlStageSums = perSqlStageSummary.filter(_.sqlID == pInfo.sqlID)
         val estimatedInfo = getPerSQLWallClockSummary(sqlStageSums, wallClockDur,
           sqlIDtoFailures.get(pInfo.sqlID).nonEmpty, appName)
-        EstimatedPerSQLSummaryInfo(pInfo.sqlID, pInfo.sqlDesc, estimatedInfo)
+        EstimatedPerSQLSummaryInfo(pInfo.sqlID, pInfo.rootExecutionID, pInfo.sqlDesc, estimatedInfo)
       }
     }
     perSqlInfos

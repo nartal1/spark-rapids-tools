@@ -360,6 +360,7 @@ case class FormattedQualificationSummaryInfo(
 object QualOutputWriter {
   val NON_SQL_TASK_DURATION_STR = "NonSQL Task Duration"
   val SQL_ID_STR = "SQL ID"
+  val ROOT_SQL_ID_STR = "Root SQL ID"
   val SQL_DESC_STR = "SQL Description"
   val STAGE_ID_STR = "Stage ID"
   val APP_ID_STR = "App ID"
@@ -552,6 +553,7 @@ object QualOutputWriter {
     val detailedHeaderAndFields = LinkedHashMap[String, Int](
       APP_ID_STR -> QualOutputWriter.getAppIdSize(appInfos),
       SQL_ID_STR -> SQL_ID_STR.size,
+      ROOT_SQL_ID_STR -> ROOT_SQL_ID_STR.size,
       STAGE_ID_STR -> STAGE_ID_STR.size,
       EXEC_ID -> EXEC_ID.size,
       UNSUPPORTED_TYPE -> UNSUPPORTED_TYPE.size,
@@ -706,6 +708,7 @@ object QualOutputWriter {
       APP_NAME_STR -> appMaxNameSize,
       APP_ID_STR -> appMaxIdSize,
       SQL_ID_STR -> SQL_ID_STR.size,
+      ROOT_SQL_ID_STR -> ROOT_SQL_ID_STR.size,
       SQL_DESC_STR -> sqlDescLength,
       SQL_DUR_STR -> SQL_DUR_STR_SIZE,
       GPU_OPPORTUNITY_STR -> GPU_OPPORTUNITY_STR_SIZE,
@@ -740,6 +743,8 @@ object QualOutputWriter {
       reformatCSVFunc(sumInfo.info.appName) -> headersAndSizes(APP_NAME_STR),
       reformatCSVFunc(sumInfo.info.appId) -> appIdMaxSize,
       sumInfo.sqlID.toString -> SQL_ID_STR.size,
+      sumInfo.rootExecutionID.getOrElse(reformatCSVFunc("")).toString
+          -> headersAndSizes(ROOT_SQL_ID_STR),
       reformatCSVFunc(formatSQLDescription(sumInfo.sqlDesc, maxSQLDescLength, delimiter)) ->
         headersAndSizes(SQL_DESC_STR),
       sumInfo.info.sqlDfDuration.toString -> SQL_DUR_STR_SIZE,
@@ -759,6 +764,7 @@ object QualOutputWriter {
     val detailedHeadersAndFields = LinkedHashMap[String, Int](
       APP_ID_STR -> QualOutputWriter.getAppIdSize(appInfos),
       SQL_ID_STR -> SQL_ID_STR.size,
+      ROOT_SQL_ID_STR -> ROOT_SQL_ID_STR.size,
       EXEC_STR -> getMaxSizeForHeader(execInfos.map(_.exec.size), EXEC_STR),
       EXPR_STR -> getMaxSizeForHeader(execInfos.map(_.expr.size), EXPR_STR),
       SPEEDUP_FACTOR_STR -> SPEEDUP_FACTOR_STR.size,
@@ -865,6 +871,8 @@ object QualOutputWriter {
     val data = ListBuffer[(String, Int)](
       reformatCSVFunc(appId) -> headersAndSizes(APP_ID_STR),
       info.sqlID.toString -> headersAndSizes(SQL_ID_STR),
+      info.rootExecutionID.getOrElse(reformatCSVFunc("")).toString
+          -> headersAndSizes(ROOT_SQL_ID_STR),
       reformatCSVFunc(info.exec) -> headersAndSizes(EXEC_STR),
       reformatCSVFunc(info.expr) -> headersAndSizes(EXEC_STR),
       ToolUtils.formatDoublePrecision(info.speedupFactor) -> headersAndSizes(SPEEDUP_FACTOR_STR),
@@ -1000,6 +1008,8 @@ object QualOutputWriter {
       val data = ListBuffer[(String, Int)](
         reformatCSVFunc(appId) -> headersAndSizes(APP_ID_STR),
         unSupExecInfo.sqlId.toString -> headersAndSizes(SQL_ID_STR),
+        unSupExecInfo.rootExecutionSQLID.getOrElse(reformatCSVFunc("")).toString
+            -> headersAndSizes(ROOT_SQL_ID_STR),
         stageId.toString -> headersAndSizes(STAGE_ID_STR),
         reformatCSVFunc(unSupExecInfo.execId.toString) -> headersAndSizes(EXEC_ID),
         reformatCSVFunc(unSupExecInfo.finalOpType) -> headersAndSizes(UNSUPPORTED_TYPE),

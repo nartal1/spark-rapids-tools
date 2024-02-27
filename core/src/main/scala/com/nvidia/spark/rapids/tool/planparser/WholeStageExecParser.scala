@@ -27,7 +27,8 @@ case class WholeStageExecParser(
     checker: PluginTypeChecker,
     sqlID: Long,
     app: AppBase,
-    reusedNodeIds: Set[Long]) extends Logging {
+    reusedNodeIds: Set[Long],
+    rootExecutionID: Option[Long]) extends Logging {
 
   val fullExecName = "WholeStageCodegenExec"
 
@@ -43,7 +44,7 @@ case class WholeStageExecParser(
     // the children nodes.
     val isDupNode = reusedNodeIds.contains(node.id)
     val childNodes = node.nodes.flatMap { c =>
-      SQLPlanParser.parsePlanNode(c, sqlID, checker, app, reusedNodeIds)
+      SQLPlanParser.parsePlanNode(c, sqlID, checker, app, reusedNodeIds, rootExecutionID)
     }
     // if any of the execs in WholeStageCodegen supported mark this entire thing
     // as supported
@@ -56,8 +57,10 @@ case class WholeStageExecParser(
     // can't rely on the wholeStagecodeGen having a stage if children do so aggregate them together
     // for now
     val allStagesIncludingChildren = childNodes.flatMap(_.stages).toSet ++ stagesInNode.toSet
-    val execInfo = ExecInfo(node, sqlID, node.name, node.name, avSpeedupFactor, maxDuration,
-      node.id, anySupported, Some(childNodes), allStagesIncludingChildren,
+    val execInfo = ExecInfo(node, sqlID,  node.name, node.name,
+      avSpeedupFactor,
+      maxDuration, node.id, anySupported, Some(childNodes), rootExecutionID,
+      allStagesIncludingChildren,
       shouldRemove = isDupNode, unsupportedExprs = unSupportedExprsArray)
     Seq(execInfo)
   }

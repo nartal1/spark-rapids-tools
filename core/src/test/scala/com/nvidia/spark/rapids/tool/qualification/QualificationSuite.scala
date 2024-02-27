@@ -102,6 +102,7 @@ class QualificationSuite extends BaseTestSuite {
     (QualOutputWriter.APP_NAME_STR, StringType),
     (QualOutputWriter.APP_ID_STR, StringType),
     (QualOutputWriter.SQL_ID_STR, StringType),
+    (QualOutputWriter.ROOT_SQL_ID_STR, StringType),
     (QualOutputWriter.SQL_DESC_STR, StringType),
     (QualOutputWriter.SQL_DUR_STR, LongType),
     (QualOutputWriter.GPU_OPPORTUNITY_STR, LongType),

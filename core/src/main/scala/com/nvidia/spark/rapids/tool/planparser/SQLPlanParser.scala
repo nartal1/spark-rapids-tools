@@ -61,6 +61,7 @@ object UnsupportedReasons extends Enumeration {
 
 case class UnsupportedExecSummary(
     sqlId: Long,
+    rootExecutionSQLID: Option[Long],
     execId: Long,
     execValue: String,
     opType: OpTypes.OpType,
@@ -90,6 +91,7 @@ case class ExecInfo(
     opType: OpTypes.OpType,
     isSupported: Boolean,
     children: Option[Seq[ExecInfo]], // only one level deep
+    var rootExecutionID: Option[Long],
     var stages: Set[Int],
     var shouldRemove: Boolean,
     unsupportedExprs: Array[String],
@@ -118,6 +120,13 @@ case class ExecInfo(
 
   def setStages(stageIDs: Set[Int]): Unit = {
     stages = stageIDs
+  }
+
+  def setRootExecutionID(rootExecutionIDs: Option[Long]): Unit = {
+    if (children.isDefined) {
+      children.get.foreach(_.setRootExecutionID(rootExecutionID))
+    }
+    rootExecutionID=rootExecutionIDs
   }
 
   def setShouldRemove(value: Boolean): Unit = {
@@ -160,7 +169,7 @@ case class ExecInfo(
   def getUnsupportedExecSummaryRecord(execId: Long): Seq[UnsupportedExecSummary] = {
     val unsupportedReason = getUnsupportedReason
     val res =
-      ArrayBuffer(UnsupportedExecSummary(sqlID, execId, exec, opType,
+      ArrayBuffer(UnsupportedExecSummary(sqlID, rootExecutionID, execId, exec, opType,
         unsupportedReason, getOpAction))
     // TODO: Should we iterate on exec children?
     // add the unsupported expressions to the results
@@ -173,7 +182,7 @@ case class ExecInfo(
         case _ => UnsupportedReasons.IS_UNSUPPORTED
       }
       unsupportedExprs.foreach { expr =>
-        res += UnsupportedExecSummary(sqlID, execId, expr, OpTypes.Expr,
+        res += UnsupportedExecSummary(sqlID, rootExecutionID, execId, expr, OpTypes.Expr,
           exprReason, getOpAction, isExpression = true)
       }
     }
@@ -194,6 +203,7 @@ object ExecInfo {
       opType: OpTypes.OpType,
       isSupported: Boolean,
       children: Option[Seq[ExecInfo]], // only one level deep
+      rootExecutionID: Option[Long] = None,
       stages: Set[Int] = Set.empty,
       shouldRemove: Boolean = false,
       unsupportedExprs: Array[String] = Array.empty,
@@ -228,6 +238,7 @@ object ExecInfo {
       finalOpType,
       supportedFlag,
       children,
+      rootExecutionID,
       stages,
       removeFlag,
       unsupportedExprs,
@@ -247,6 +258,7 @@ object ExecInfo {
       nodeId: Long,
       isSupported: Boolean,
       children: Option[Seq[ExecInfo]], // only one level deep
+      rootExecutionID: Option[Long] = None,
       stages: Set[Int] = Set.empty,
       shouldRemove: Boolean = false,
       unsupportedExprs: Array[String] = Array.empty,
@@ -280,6 +292,7 @@ object ExecInfo {
       opType,
       isSupported,
       children,
+      rootExecutionID,
       stages,
       shouldRemove,
       finalUnsupportedExpr,
@@ -292,6 +305,7 @@ object ExecInfo {
 case class PlanInfo(
     appID: String,
     sqlID: Long,
+    rootExecutionID: Option[Long],
     sqlDesc: String,
     execInfo: Seq[ExecInfo]
 )
@@ -381,16 +395,17 @@ object SQLPlanParser extends Logging {
       sqlID: Long,
       sqlDesc: String,
       checker: PluginTypeChecker,
-      app: AppBase): PlanInfo = {
+      app: AppBase,
+      rootExecutionID: Option[Long] = None): PlanInfo = {
     val planGraph = ToolsPlanGraph(planInfo)
     // Find all the node graphs that should be excluded and send it to the parsePlanNode
     val excludedNodes = buildSkippedReusedNodesForPlan(planGraph)
     // we want the sub-graph nodes to be inside of the wholeStageCodeGen so use nodes
     // vs allNodes
     val execInfos = planGraph.nodes.flatMap { node =>
-      parsePlanNode(node, sqlID, checker, app, reusedNodeIds = excludedNodes)
+      parsePlanNode(node, sqlID, checker, app, reusedNodeIds = excludedNodes, rootExecutionID)
     }
-    PlanInfo(appID, sqlID, sqlDesc, execInfos)
+    PlanInfo(appID, sqlID, rootExecutionID, sqlDesc, execInfos)
   }
 
   def getStagesInSQLNode(node: SparkPlanGraphNode, app: AppBase): Set[Int] = {
@@ -410,8 +425,8 @@ object SQLPlanParser extends Logging {
       sqlID: Long,
       checker: PluginTypeChecker,
       app: AppBase,
-      reusedNodeIds: Set[Long]
-  ): Seq[ExecInfo] = {
+      reusedNodeIds: Set[Long],
+      rootExecutionID: Option[Long] = None): Seq[ExecInfo] = {
     // Avoid counting duplicate nodes. We mark them as shouldRemove to neutralize their impact on
     // speedups.
     val isDupNode = reusedNodeIds.contains(node.id)
@@ -423,7 +438,7 @@ object SQLPlanParser extends Logging {
     if (node.name.contains("WholeStageCodegen")) {
       // this is special because it is a SparkPlanGraphCluster vs SparkPlanGraphNode
       WholeStageExecParser(node.asInstanceOf[SparkPlanGraphCluster], checker, sqlID, app,
-        reusedNodeIds).parse
+        reusedNodeIds, rootExecutionID).parse
     } else {
       val execInfos = try {
         node.name match {
@@ -508,8 +523,8 @@ object SQLPlanParser extends Logging {
             // Execs that are members of reuseExecs (i.e., ReusedExchange) should be marked as
             // supported but with shouldRemove flag set to True.
             // Setting the "shouldRemove" is handled at the end of the function.
-            ExecInfo(node, sqlID, node.name, expr = "", 1, duration = None, node.id,
-              isSupported = reuseExecs.contains(node.name), None)
+            ExecInfo(node, sqlID, node.name, expr = "", 1, duration = None,
+              node.id, isSupported = reuseExecs.contains(node.name), None)
         }
       } catch {
         // Error parsing expression could trigger an exception. If the exception is not handled,
@@ -527,6 +542,7 @@ object SQLPlanParser extends Logging {
       }
       val stagesInNode = getStagesInSQLNode(node, app)
       execInfos.setStages(stagesInNode)
+      execInfos.setRootExecutionID(rootExecutionID)
       // shouldRemove is set to true if the exec is a member of "execsToBeRemoved" or if the node
       // is a duplicate
       execInfos.setShouldRemove(isDupNode)
